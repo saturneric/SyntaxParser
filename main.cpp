@@ -1,11 +1,13 @@
 #include <iostream>
 #include <ctime>
 #include <fstream>
+#include <utility>
 #include <vector>
 #include <string>
 #include <sstream>
 #include <set>
 #include <map>
+#include <memory>
 
 using namespace std;
 
@@ -13,6 +15,7 @@ using std::vector;
 using std::string;
 using std::stringstream;
 using std::pair;
+using std::shared_ptr;
 
 struct Symbol {
 
@@ -20,9 +23,9 @@ struct Symbol {
     const string name;
     const bool terminator;
 
-    Symbol(int index, const string & name, bool terminator):
+    Symbol(int index, string  name, bool terminator):
     index(index),
-    name(name),
+    name(std::move(name)),
     terminator(terminator)
     {}
 
@@ -36,19 +39,54 @@ public:
 
     int addSymbol(const string& name, bool terminator) {
         const auto &it = table.find(name);
-        if ((it) != table.end()) {
+        if (it != table.end()) {
             return it->second.index;
         }
         Symbol symbol = Symbol(index++, name, terminator);
         table.insert(pair<string, Symbol>(symbol.name, symbol));
         return symbol.index;
     }
+
+    int getSymbolIndex(const string &name) {
+        const auto &it = table.find(name);
+        if(it != table.end()) {
+            return it->second.index;
+        } else {
+            throw runtime_error("symbol " + name + " NOT Found");
+        }
+    }
+
 };
+
+// 产生式
+class Production {
+    const int left;
+    const vector<int> right;
+
+public:
+
+    Production(int left, vector<int> right): left(left), right(std::move(right)) {}
+
+};
+
+// 项
+class Item{
+    // 对应的产生式
+    shared_ptr<Production> production;
+    // 点的位置
+    int dotIndex = 0;
+public:
+    explicit Item(shared_ptr<Production> &&p_pdt) {
+        production = p_pdt;
+    }
+};
+
+
 
 ifstream input("syntaxInput.txt");
 
 
-map<string, set<string>> productions;//读入文件后，存放产生式
+map<int, shared_ptr<Production>> productions;//读入文件后，存放产生式
 map<string, set<string>> project;//在每个产生式右部前面加上点，得到初始项目集
 map<int, set<string>> StateSet;//状态
 map<int, set<string>> StateSetTemp;
@@ -89,10 +127,10 @@ string& trim(string &&str) {
 
 //得到最初项目集
 void getProject() {
-    productions["S\'"].insert("S");
+
     //读入文法文件
-    int k = 1;
     string temp_line;
+
     while (getline(input, temp_line)) {
         auto middle_index = temp_line.find("->", 0);
 
@@ -102,15 +140,17 @@ void getProject() {
         }
 
         string front = trim(temp_line.substr(0, middle_index));
+        int left = symbolTable.addSymbol(front, false);
 
         string back = trim(temp_line.substr(middle_index + 2, temp_line.size() - middle_index - 2));
 
         stringstream terminator, non_terminator;
+        vector<int> symbols;
         bool is_terminator = false;
         for(const auto &c : back) {
             if (c == '\"') {
                 if(is_terminator) {
-                    symbolTable.addSymbol(trim(terminator.str()), true);
+                    symbols.push_back(symbolTable.addSymbol(trim(terminator.str()), true));
                     terminator.str("");
                     terminator.clear();
                 }
@@ -120,7 +160,7 @@ void getProject() {
             if(c == ' ') {
                 string temp_symbol = trim(non_terminator.str());
                 if(!temp_symbol.empty()) {
-                    symbolTable.addSymbol(trim(non_terminator.str()), false);
+                    symbols.push_back(symbolTable.addSymbol(trim(non_terminator.str()), false));
                     non_terminator.str("");
                     non_terminator.clear();
                 }
@@ -133,12 +173,14 @@ void getProject() {
             }
         }
 
-        productions[temp_line.substr(0, 1)].insert(temp_line.substr(3, temp_line.length() - 3 + 1));
-        css_by_order[k++] = temp_line;
+        auto p_pdt = make_shared<Production>(left, symbols);
+
+        productions[left] = p_pdt;
     }
+
     //构造基本项目集，即圆点位于右部开头的位置
     string dot = "*";
-    for(map<string, set<string>>::iterator it = productions.begin(); it != productions.end(); it++) {
+    for(const auto &item : productions) {
         for(set<string>::iterator ij =it->second.begin(); ij != it->second.end(); ij++) {
             string startStr = *ij;
             startStr.insert(0, dot, 0, 1);
