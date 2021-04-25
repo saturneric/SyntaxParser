@@ -1,69 +1,117 @@
 #include <iostream>
 #include <ctime>
 #include <fstream>
-#include <utility>
 #include <vector>
 #include <string>
 #include <sstream>
+#include <codecvt>
 #include <set>
 #include <map>
-#include <memory>
+#include <locale>
 
 using namespace std;
 
 using std::vector;
-using std::string;
-using std::stringstream;
+using std::wstring;
+using std::wstringstream;
 using std::pair;
-using std::shared_ptr;
+using std::wcout;
+using std::endl;
+using std::to_string;
 
 struct Symbol {
 
     const int index;
-    const string name;
+    const wstring name;
     const bool terminator;
+    const bool start;
 
-    Symbol(int index, string  name, bool terminator):
+    Symbol(int index, wstring name, bool terminator, bool start):
     index(index),
     name(std::move(name)),
-    terminator(terminator)
+    terminator(terminator),
+    start(start)
     {}
 
 };
 
 class SymbolTable {
-    int index = 0;
-    map<string, Symbol> table;
+    int index = 1;
+
+    map<wstring, Symbol *> table;
+
+    map<int, Symbol *> cache;
+
+    vector<const Symbol *> line;
 
 public:
 
-    int addSymbol(const string& name, bool terminator) {
-        const auto &it = table.find(name);
-        if (it != table.end()) {
-            return it->second.index;
-        }
-        Symbol symbol = Symbol(index++, name, terminator);
-        table.insert(pair<string, Symbol>(symbol.name, symbol));
-        return symbol.index;
+    SymbolTable() {
+
+        auto symbol = new Symbol(0, L"ε", true, false);
+        table.insert(pair<wstring, Symbol *>(L"ε", symbol));
+        cache.insert(pair<int, Symbol *>(0, symbol));
+        line.push_back(symbol);
+
+        symbol = new Symbol(-1, L"$", true, false);
+        table.insert(pair<wstring, Symbol *>(L"$", symbol));
+        cache.insert(pair<int, Symbol *>(-1, symbol));
+        line.push_back(symbol);
     }
 
-    int getSymbolIndex(const string &name) {
+    const vector<const Symbol *> &getAllSymbols() {
+        return line;
+    }
+
+    int addSymbol(const wstring& name, bool terminator) {
+
+        Symbol *symbol = nullptr;
+
+        if(name == L"ε") {
+            return 0;
+        } else if (name[0] == L'@') {
+            symbol = new Symbol(index, name, terminator, true);
+        } else {
+            symbol = new Symbol(index, name, terminator, false);
+        }
+
+        const auto &it = table.find(name);
+        if (it != table.end()) {
+            return it->second->index;
+        }
+        table.insert(pair<wstring, Symbol *>(symbol->name, symbol));
+        cache.insert(pair<int, Symbol *>(symbol->index, symbol));
+        line.push_back(symbol);
+
+        index++;
+
+        return symbol->index;
+    }
+
+    const Symbol *getSymbol(int symbol_index) {
+        const auto &it = cache.find(symbol_index);
+        if(it != cache.end()) {
+            return it->second;
+        } else {
+            throw runtime_error("symbol " + to_string(symbol_index) + " NOT Found");
+        }
+    }
+
+    int getSymbolIndex(const wstring &name) {
         const auto &it = table.find(name);
         if(it != table.end()) {
-            return it->second.index;
+            return it->second->index;
         } else {
-            throw runtime_error("symbol " + name + " NOT Found");
+            throw runtime_error("symbol NOT Found");
         }
     }
 
 };
 
 // 产生式
-class Production {
+struct Production {
     const int left;
     const vector<int> right;
-
-public:
 
     Production(int left, vector<int> right): left(left), right(std::move(right)) {}
 
@@ -72,410 +120,350 @@ public:
 // 项
 class Item{
     // 对应的产生式
-    shared_ptr<Production> production;
+    Production* production;
     // 点的位置
     int dotIndex = 0;
 public:
-    explicit Item(shared_ptr<Production> &&p_pdt) {
+    explicit Item(Production *p_pdt) {
         production = p_pdt;
     }
 };
 
+class Generator{
 
+    // 文件输入
+    wifstream input;
 
-ifstream input("syntaxInput.txt");
+    // 符号表
+    SymbolTable symbolTable;
 
+    // 产生式
+    vector<Production *> productions;
 
-map<int, shared_ptr<Production>> productions;//读入文件后，存放产生式
-map<string, set<string>> project;//在每个产生式右部前面加上点，得到初始项目集
-map<int, set<string>> StateSet;//状态
-map<int, set<string>> StateSetTemp;
-string css_by_order[20];
-string link[12][12];//存放各个状态之间的关系
+    // FIRST结果存储表
+    map<int, set<int> *> firsts;
 
-SymbolTable symbolTable;
+    // FOLLOW结果存储表
+    map<int, set<int> *> follows;
 
-vector<vector<string>> ActionTable;
+    // 去掉首尾空格
+    static wstring& trim(wstring &&str) {
+        if (str.empty()) {
+            return str;
+        }
 
-vector<vector<int>> GoToTable;
-
-set<string> Vn;
-set<string> Vt;
-
-vector<string> vn_index;
-vector<string> vt_index;
-
-bool isVn(char ch) {
-    if (ch >= 'A' && ch <= 'Z') {
-        return true;
-    } else{
-        return false;
-    }
-}
-
-
-// 去掉首尾空格
-string& trim(string &&str) {
-    if (str.empty()) {
+        str.erase(0,str.find_first_not_of(' '));
+        str.erase(str.find_last_not_of(' ') + 1);
         return str;
     }
 
-    str.erase(0,str.find_first_not_of(' '));
-    str.erase(str.find_last_not_of(' ') + 1);
-    return str;
-}
+    set<int > *FIRST(const vector<int> &symbols, int start_index) {
 
-//得到最初项目集
-void getProject() {
+        // 生成集合
+        auto *non_terminator_symbols = new set<int>();
 
-    //读入文法文件
-    string temp_line;
+        for(int i = start_index; i < symbols.size(); i++) {
 
-    while (getline(input, temp_line)) {
-        auto middle_index = temp_line.find("->", 0);
+            const auto p_non_term_set = FIRST(symbols[i]);
 
+            non_terminator_symbols->insert(p_non_term_set->begin(), p_non_term_set->end());
 
-        if(middle_index == string::npos) {
-            throw runtime_error("-> NOT FOUND");
-        }
-
-        string front = trim(temp_line.substr(0, middle_index));
-        int left = symbolTable.addSymbol(front, false);
-
-        string back = trim(temp_line.substr(middle_index + 2, temp_line.size() - middle_index - 2));
-
-        stringstream terminator, non_terminator;
-        vector<int> symbols;
-        bool is_terminator = false;
-        for(const auto &c : back) {
-            if (c == '\"') {
-                if(is_terminator) {
-                    symbols.push_back(symbolTable.addSymbol(trim(terminator.str()), true));
-                    terminator.str("");
-                    terminator.clear();
-                }
-                is_terminator = !is_terminator;
+            const auto sec_it = p_non_term_set->find(0);
+            if(sec_it != p_non_term_set->end()) {
                 continue;
-            }
-            if(c == ' ') {
-                string temp_symbol = trim(non_terminator.str());
-                if(!temp_symbol.empty()) {
-                    symbols.push_back(symbolTable.addSymbol(trim(non_terminator.str()), false));
-                    non_terminator.str("");
-                    non_terminator.clear();
-                }
-                continue;
-            }
-            if(is_terminator) {
-                terminator << c;
             } else {
-                non_terminator << c;
+                break;
             }
         }
 
-        auto p_pdt = make_shared<Production>(left, symbols);
-
-        productions[left] = p_pdt;
+        return non_terminator_symbols;
     }
 
-    //构造基本项目集，即圆点位于右部开头的位置
-    string dot = "*";
-    for(const auto &item : productions) {
-        for(set<string>::iterator ij =it->second.begin(); ij != it->second.end(); ij++) {
-            string startStr = *ij;
-            startStr.insert(0, dot, 0, 1);
-            project[it->first].insert(startStr);
-        }
-    }
-}
+    set<int>* FIRST(int symbol) {
 
-void Init_I0() {
-    StateSet[0].insert("S'->*S");
-    //先将所有的左部为S的产生式加入0号状态中
-    for(map<string, set<string> >::iterator it = project.begin(); it != project.end(); it++) {
-        if ((it->first) == "S") {
-            for(set<string>::iterator ij = it->second.begin(); ij != it->second.end(); ij++) {
-                StateSetTemp[0].insert(it->first + "->" + *ij);
-            }
+        // 查找缓存
+        const auto it = firsts.find(symbol);
+        if(it != firsts.end()) {
+            return it->second;
         }
-    }
-    //根据I0状态中已知内容，添加后续
-    while (! StateSetTemp[0].empty()){
-        set<string>::iterator it = StateSetTemp[0].begin();
-        string it_str = *it;//暂时集合中的每一条产生式
-        //如果点后面是非终结符，在project例找到它能推出来的产生式，加入temp,
-        if (isVn(it_str[4])) {
-            string after_dot_ch = it_str.substr(4,1);
-            for(set<string>::iterator css = project[after_dot_ch].begin(); css != project[after_dot_ch].end(); css++) {
-                StateSetTemp[0].insert(after_dot_ch + "->" + *css);
-            }
-            StateSetTemp[0].erase(it_str);
-            StateSet[0].insert(it_str);
-        }else if(! isVn(it_str[4])) {
-            StateSetTemp[0].erase(it_str);
-            StateSet[0].insert(it_str);
-        }
-    }
-}
 
-string MoveDot(string s, int pos) {
-    s.erase(pos,1);
-    s = s.substr(0, pos+1) + "*" + s.substr(pos+1, s.length()-pos);
-    return s;
-}
+        // 生成集合
+        auto *non_terminator_symbols = new set<int>();
 
-void GenerateState() {
-    Init_I0();
-    int i = 0;
-    int state_num = 0;
-    string enter;
-    //对于每一个状态
-    while (i < StateSet.size()) {
-        map<string, set<string>> after_dot_ch;
-        //构造该状态中的after_dot_ch的map，first为点后面的字母，即输入字母，second为输入字母为first时的项目
-        for (set<string>::iterator it = StateSet[i].begin(); it != StateSet[i].end(); it++) {//对于此状态的每一个项目
-            int dot_pos = (*it).find("*");
-            if (dot_pos + 1 != (*it).length()) {
-                string s = (*it).substr(dot_pos + 1, 1);//点后面的字母
-                after_dot_ch[s].insert(*it);
-            }
-        }
-        if (after_dot_ch.size() == 0) {
-            i++;
-            continue;
-        }
-        for (map<string, set<string>>::iterator adc = after_dot_ch.begin(); adc != after_dot_ch.end(); adc++) {
-            enter = adc->first;
-            state_num++;
-            for (set<string>::iterator p = adc->second.begin(); p != adc->second.end(); p++) {
-                int dot_pos = (*p).find("*");
-                string moved_proj = MoveDot(*p, dot_pos);
-                int moved_dot_pos = (moved_proj).find("*");
-                StateSet[state_num].insert(moved_proj);
+        // 如果是终结符
+        if(symbolTable.getSymbol(symbol)->terminator) {
+            non_terminator_symbols->insert(symbol);
+        } else {
 
-                string moved_adc = moved_proj.substr(moved_dot_pos + 1, 1);
-                if (isVn(moved_adc[0])) {
-                    //如果点移动后的字符串中，点后字母是非终结符，则将以该非终结符开头的project加入该状态
-                    for (set<string>::iterator proj_css = project[moved_adc].begin();
-                         proj_css != project[moved_adc].end(); proj_css++) {
-                        StateSet[state_num].insert(moved_adc + "->" + (*proj_css));
+            bool production_found = false;
+
+            // 遍历每一产生式
+            for (const auto &production : productions) {
+                Production *p_pdt = production;
+
+                if (p_pdt->left != symbol) continue;
+
+                production_found = true;
+
+                for (const auto &right_symbol : p_pdt->right) {
+
+                    const auto p_non_term_set = FIRST(right_symbol);
+
+                    non_terminator_symbols->insert(p_non_term_set->begin(), p_non_term_set->end());
+
+                    const auto sec_it = p_non_term_set->find(0);
+
+                    if(sec_it != p_non_term_set->end()) {
+                        continue;
+                    } else {
+                        break;
                     }
+
                 }
             }
-            //--------判断之前是否有与新产生的状态相等的--------
-            bool is_equal = false;
-            for (int j = 0; j < state_num; ++j) {
-                if (StateSet[state_num].size() == StateSet[j].size()) {
-                    for (set<string>::iterator str = StateSet[j].begin(); str != StateSet[j].end(); str++) {
-                        if (StateSet[state_num].count(*str) == 0){
-                            break;
-                        } else{
-                            link[i][j] = enter;
-                            is_equal = true;
+
+            if (!production_found) non_terminator_symbols->insert(0);
+        }
+
+        this->firsts.insert(pair<int, set<int> *>(symbol, non_terminator_symbols));
+
+        return non_terminator_symbols;
+    }
+
+    const set<int> *FOLLOW(int symbol) {
+        if(follows.empty()) {
+            FOLLOW();
+        }
+
+        const auto it = follows.find(symbol);
+        if(it != follows.end()) {
+            return it->second;
+        } else {
+            throw runtime_error("symbol NOT Found");
+        }
+    }
+
+    void FOLLOW() {
+
+        for (const auto &symbol : symbolTable.getAllSymbols()) {
+            if (!symbol->terminator) {
+                if (symbol->start) {
+                    set<int> *non_terminator_symbols = get_follow_set(symbol->index);
+                    non_terminator_symbols->insert(-1);
+                }
+            }
+        }
+
+        // 指导没有新的符号被添加到任意FOLLOW集合
+        bool ifAdded = true;
+
+        while(ifAdded) {
+
+            ifAdded = false;
+
+
+            set<int> *non_terminator_symbols = nullptr;
+
+
+            for (const auto &production : productions) {
+
+                const auto &right_symbols = production->right;
+
+                set<int> equal_left_non_terminators;
+
+                for (int i = 0; i < right_symbols.size() - 1; i++) {
+
+                    // 非终结符
+                    if (!symbolTable.getSymbol(right_symbols[i])->terminator) {
+
+                        const auto p_non_term_set = FIRST(right_symbols, i + 1);
+
+                        // 获得FOLLOW集
+                        non_terminator_symbols = get_follow_set(right_symbols[i]);
+
+                        const size_t set_size = non_terminator_symbols->size();
+
+                        non_terminator_symbols->insert(p_non_term_set->begin(), p_non_term_set->end());
+
+                        // 在集合中发现空字符
+                        if(non_terminator_symbols->find(0) != non_terminator_symbols->end()) {
+                            non_terminator_symbols->erase(0);
+                            equal_left_non_terminators.insert(right_symbols[i]);
+                        }
+
+                        // 检查是否有新的终结符号被添加
+                        if(set_size < non_terminator_symbols->size()) {
+                            ifAdded = true;
                         }
                     }
                 }
-            }
-            if (is_equal == true) {//两个状态全部项目都相等
-                StateSet.erase(state_num);
-                state_num--;
-            } else{
-                link[i][state_num] = enter;
-            }
-            //--------------------------------------------
-        }
-        i++;
-    }
-}
 
-void printState() {
-    cout << "-------------------------Status--------------------------"<<endl;
-    for(map<int, set<string>>::iterator it = StateSet.begin(); it != StateSet.end(); it++) {
-        cout << "I_" << it->first << ": ";
-        for(set<string>::iterator ij = it->second.begin(); ij != it->second.end(); ij++) {
-            cout << *ij << ", ";
-        }
-        cout << endl;
-    }
-    cout << "---------------------------------------------------------"<<endl;
-}
-
-void printLinkedTable() {
-    cout << "============================================DFA================================================"<<endl;
-    cout <<  '\t';
-    for (int i = 0; i < 11; ++i) {
-        cout << i << '\t';
-    }
-    cout << endl;
-    for (int i = 0; i < 11; ++i) {
-        cout << i << '\t';
-        for (int j = 0; j < 11; ++j) {
-            cout << link[i][j] << '\t';
-        }
-        cout << endl;
-    }
-}
-
-void getVnandVt() {
-    for(map<string, set<string>>::iterator it = productions.begin(); it != productions.end(); it++) {
-        string c = it->first;
-        if (c != "S'")
-            Vn.insert(c);
-        for(set<string>::iterator ij = it->second.begin(); ij != it->second.end(); ij++) {
-            for (int i = 0; i < (*ij).length(); ++i) {
-                if (!isVn((*ij)[i])) {
-                    Vt.insert((*ij).substr(i, 1));
-                }
-            }
-        }
-    }
-    Vt.insert("#");
-}
-
-int findIndex(string enter) {
-    int pos;
-    if (!isVn(enter[0])) {
-        for (int k = 0; k < 10; ++k) {
-            if (vt_index[k] == enter) {
-                pos = k;
-                break;
-            }
-        }
-    } else{
-        for (int k = 0; k < 10; ++k) {
-            if (vn_index[k] == enter) {
-                pos = k;
-                break;
-            }
-        }
-    }
-    return pos;
-}
-
-void GenerateAction_Table() {
-    //构造Action分析表的行名与列名
-    ActionTable[0][0] = "";
-    int j = 0;
-    set<string>::iterator ij = Vt.begin();
-    while (j < Vt.size()) {
-        vt_index[j] = *ij;
-        ij++; j++;
-    }
-
-    //构造Action表
-    // ---------移入
-    for (int i = 0; i < StateSet.size(); ++i) {
-        for (int j = 0; j < StateSet.size(); ++j) {
-            if (link[i][j].length() != 0 && (!isVn(link[i][j][0]))) {
-                string enter = link[i][j];
-                int pos = findIndex(enter);
-                ActionTable[i][pos] = "s" + to_string(j);
-            }
-        }
-    }
-    // ---------规约
-    for (int l = 0; l < StateSet.size(); ++l) {
-        if (StateSet[l].size() == 1) {
-            set<string>::iterator it = StateSet[l].begin();
-            string proj = *it;
-            if (proj == "S'->S*") {
-                ActionTable[l][findIndex("#")] = "acc";
-                continue;
-            }
-            int dot_pos = proj.find("*");
-            if (dot_pos+1 == proj.length()) {
-                string no_dot_proj = proj.erase(dot_pos,1);
-                //先找到这个项目对应的无点产生式index
-                int index = 0;//无点产生式的编号index。第几条产生式
-                for (index = 0; index < 20; ++index) {
-                    if (css_by_order[index] == no_dot_proj) {
-                        break;
+                if(!right_symbols.empty()) {
+                    if (!symbolTable.getSymbol(right_symbols[right_symbols.size() - 1])->terminator) {
+                        equal_left_non_terminators.insert(right_symbols[right_symbols.size() - 1]);
                     }
                 }
-                for (int m = 0; m < Vt.size(); ++m) {
-                    ActionTable[l][m] = "r" + to_string(index);
+
+                for(const auto symbol : equal_left_non_terminators) {
+                    // 获得左边非终结符的FOLLOW集
+                    const auto left_non_terminator_symbols = get_follow_set(production->left);
+                    // 获得FOLLOW集
+                    non_terminator_symbols = get_follow_set(symbol);
+
+                    const size_t set_size = non_terminator_symbols->size();
+
+                    non_terminator_symbols->insert(
+                            left_non_terminator_symbols->begin(),
+                            left_non_terminator_symbols->end());
+
+                    if(non_terminator_symbols->find(0) != non_terminator_symbols->end()) {
+                        non_terminator_symbols->erase(0);
+                    }
+
+                    // 检查是否有新的终结符号被添加
+                    if(set_size < non_terminator_symbols->size()) {
+                        ifAdded = true;
+                    }
+                }
+
+            }
+
+        }
+
+    }
+
+    set<int>* get_follow_set(int symbol) {
+
+        set<int> *non_terminator_symbols = nullptr;
+
+        // 查找缓存
+        auto it = follows.find(symbol);
+        if(it != follows.end()) {
+            non_terminator_symbols = it->second;
+        } else {
+            non_terminator_symbols = new set<int>();
+            this->follows.insert(pair<int, set<int> *>(symbol, non_terminator_symbols));
+        }
+
+        return non_terminator_symbols;
+
+    }
+
+
+    void print_symbols(const set<int> &symbols_index) {
+        wcout << L"{ ";
+        for(const auto & symbol_index : symbols_index) {
+            auto *p_sym = symbolTable.getSymbol(symbol_index);
+
+            if(p_sym->terminator) {
+                if (p_sym->name == L"ε") {
+                    wcout << L" [Epsilon] ";
+                }
+                else wcout << L" \"" << p_sym->name << L"\" ";
+            } else {
+                wcout << L" " << p_sym->name << L" ";
+            }
+
+        }
+        wcout << L"}" << endl;
+    }
+
+public:
+
+    Generator(): input("syntaxInput.txt", std::ios::binary) {
+
+        auto* codeCvtToUTF8= new std::codecvt_utf8<wchar_t>;
+
+        input.imbue(std::locale(input.getloc(), codeCvtToUTF8));
+    }
+
+    void test() {
+        auto p_non_term_set = FIRST(1);
+        print_symbols(*p_non_term_set);
+
+        p_non_term_set = FIRST(3);
+        print_symbols(*p_non_term_set);
+
+        p_non_term_set = FIRST(6);
+        print_symbols(*p_non_term_set);
+
+        FOLLOW();
+
+        print_symbols(*FOLLOW(2));
+        print_symbols(*FOLLOW(6));
+        print_symbols(*FOLLOW(3));
+    }
+
+    // 得到所有的产生式
+    void getProductions() {
+
+        //读入文法文件
+        wstring temp_line;
+
+        while (getline(input, temp_line)) {
+            auto middle_index = temp_line.find(L"->", 0);
+
+
+            if(middle_index == string::npos) {
+                throw runtime_error("-> NOT FOUND");
+            }
+
+            wstring front = trim(temp_line.substr(0, middle_index));
+            int left = symbolTable.addSymbol(front, false);
+
+            wstring back = trim(temp_line.substr(middle_index + 2, temp_line.size() - middle_index - 2));
+
+            wstringstream terminator, non_terminator;
+            vector<int> symbols;
+            bool is_terminator = false;
+            for(const auto &c : back) {
+                if (c == L'\"') {
+                    if(is_terminator) {
+                        symbols.push_back(symbolTable.addSymbol(trim(terminator.str()), true));
+                        terminator.str(L"");
+                        terminator.clear();
+                    }
+                    is_terminator = !is_terminator;
+                    continue;
+                }
+                if(c == L' ' || c == L'\r') {
+                    wstring temp_symbol = trim(non_terminator.str());
+                    if(!temp_symbol.empty()) {
+                        symbols.push_back(symbolTable.addSymbol(trim(non_terminator.str()), false));
+                        non_terminator.str(L"");
+                        non_terminator.clear();
+                    }
+                    continue;
+                }
+                if(is_terminator) {
+                    terminator << c;
+                } else {
+                    non_terminator << c;
                 }
             }
-        }
-    }
-    cout << endl;
-    cout << endl;
-    cout << "----------------------[Action]---------------------" << endl;
-    int m = 0;
-    cout << '\t';
-    while (vt_index[m].length() != 0) {
-        cout << vt_index[m] << '\t';
-        m++;
-    }
-    cout << endl;
-    for (int k = 0; k < StateSet.size(); ++k) {
-        cout << k << '\t';
-        for (int l = 0; l < Vt.size(); ++l) {
-            cout << ActionTable[k][l] << '\t';
-        }
-        cout <<endl;
-    }
-}
 
-void GenerateGoTo_Table() {
+            auto p_pdt = new Production(left, symbols);
 
-    for(const auto& item : Vn) {
-        vn_index.push_back(item);
-    }
+            productions.push_back(p_pdt);
 
-    // 初始化GOTO表
-    for(int i = 0; i < StateSet.size(); i++) {
-        GoToTable.emplace_back();
-        for(int j = 0; i < StateSet.size(); j++){
-            GoToTable[i].emplace_back();
         }
     }
 
-    //构造GoTo表
-    //在link表中遍历
-    for (int i = 0; i < StateSet.size(); ++i) {
-        for (int j = 0; j < StateSet.size(); ++j) {
-            if ( link[i][j].length() != 0 && isVn(link[i][j][0]) ) {
-                string enter = link[i][j];
-                int pos = findIndex(enter);
-                GoToTable[i][pos] = j;
-            }
-        }
-    }
-    cout << endl;
-    cout << endl;
-    cout << "----------------------[GoTo]---------------------" << endl;
-    int m = 0;
-    cout << '\t';
-    while (vn_index[m].length() != 0) {
-        cout << vn_index[m] << '\t';
-        m++;
-    }
-    cout << endl;
-    for (int k = 0; k < StateSet.size(); ++k) {
-        cout << k << '\t';
-        for (int l = 0; l < Vn.size(); ++l) {
-            if (GoToTable[k][l] != 0)
-                cout << GoToTable[k][l] << '\t';
-            else
-                cout << '\t';
-        }
-        cout << endl;
-    }
-}
+};
+
+
+
 
 int main() {
     clock_t start,end;//定义clock_t变量
     start = clock(); //开始时间
 
-    getProject();
-//    GenerateState();
-//    printState();
-//    printLinkedTable();
-//    getVnandVt();
-//    GenerateAction_Table();
-//    GenerateGoTo_Table();
 
+    Generator generator;
+
+    generator.getProductions();
+
+    generator.test();
     //输出时间
     end = clock();   //结束时间
     cout << endl;

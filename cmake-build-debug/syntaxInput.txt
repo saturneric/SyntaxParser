@@ -1,1 +1,8 @@
-struct_type->"struct" ID "{" member_list "}" EOF
+@E -> T E'
+E' -> "+" T E'
+E' -> ε
+T -> F T'
+T' -> "*" F T'
+T' -> ε
+F -> "(" @E ")"
+F -> "id"
