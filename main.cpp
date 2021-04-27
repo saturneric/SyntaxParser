@@ -7,7 +7,7 @@
 #include <codecvt>
 #include <set>
 #include <map>
-#include <locale>
+#include <functional>
 
 using namespace std;
 
@@ -18,6 +18,7 @@ using std::pair;
 using std::wcout;
 using std::endl;
 using std::to_string;
+using std::hash;
 
 struct Symbol {
 
@@ -120,13 +121,113 @@ struct Production {
 // 项
 class Item{
     // 对应的产生式
-    Production* production;
+    const Production* const production;
+
     // 点的位置
-    int dotIndex = 0;
+    int dot_index = 0;
+
+    const int terminator = 0;
+
+
 public:
-    explicit Item(Production *p_pdt) {
-        production = p_pdt;
+    explicit Item(Production *p_pdt, int m_terminator) : production(p_pdt), terminator(m_terminator) {}
+
+    void set_dot_index(int m_dot_index) {
+        if(m_dot_index > production->right.size()) {
+            throw runtime_error("DOT_INDEX out of range");
+        }
+        this->dot_index = m_dot_index;
     }
+
+    int get_dot_index() const {
+        return dot_index;
+    }
+
+    int get_dot_next_symbol() {
+        if(get_dot_index() == production->right.size()) {
+            return 0;
+        } else {
+            return production->right[dot_index];
+        }
+    }
+};
+
+class ItemCollectionManager;
+
+class ItemCollection{
+
+    int index = 0;
+
+    vector<Item *> items;
+
+    Production *G;
+
+    friend ItemCollectionManager;
+
+public:
+
+    void addItem(Production *p_pdt, int dot_index, int terminator) {
+        auto *p_item = new Item(p_pdt, terminator);
+        p_item->set_dot_index(dot_index);
+        items.push_back(p_item);
+    }
+
+    void CLOSURE() {
+        bool ifAdd = true;
+
+        while(ifAdd) {
+            ifAdd = false;
+
+            for(const auto & item : items) {
+                if(item->get_dot_next_symbol() == 0) {
+                    continue;
+                }
+                // TODO
+
+            }
+
+        }
+    }
+
+};
+
+class ItemCollectionManager{
+
+    int index = 1;
+
+    map<size_t, ItemCollection *> ic_map;
+
+    vector<const ItemCollection *> ics;
+
+    template <class T>
+    inline void hash_combine(std::size_t& seed, const T& v)
+    {
+        std::hash<T> hasher;
+        seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+    }
+
+public:
+
+    const vector<const ItemCollection *> &getItemCollections() {
+        return ics;
+    }
+
+    bool addItemCollection(int idx, int terminator, ItemCollection *p_ic){
+        auto hasher = hash<int>();
+        size_t seed = hasher(idx);
+        hash_combine(seed, terminator);
+
+        auto it = ic_map.find(seed);
+        if(it != ic_map.end()) {
+            return false;
+        } else {
+            p_ic->index = this->index++;
+            ic_map.insert(pair<size_t, ItemCollection *>(seed, p_ic));
+            ics.push_back(p_ic);
+            return true;
+        }
+    }
+
 };
 
 class Generator{
@@ -145,6 +246,8 @@ class Generator{
 
     // FOLLOW结果存储表
     map<int, set<int> *> follows;
+
+    map<string, ItemCollection *> C;
 
     // 去掉首尾空格
     static wstring& trim(wstring &&str) {
