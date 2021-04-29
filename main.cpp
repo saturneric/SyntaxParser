@@ -9,6 +9,7 @@
 #include <map>
 #include <functional>
 #include <iomanip>
+#include <algorithm>
 
 using namespace std;
 
@@ -62,7 +63,7 @@ public:
         line.push_back(symbol);
     }
 
-    const vector<const Symbol *> &getAllSymbols() const {
+    [[nodiscard]] const vector<const Symbol *> &getAllSymbols() const {
         return line;
     }
 
@@ -91,7 +92,7 @@ public:
         return symbol->index;
     }
 
-    const Symbol *getSymbol(int symbol_index) const {
+    [[nodiscard]] const Symbol *getSymbol(int symbol_index) const {
         const auto &it = cache.find(symbol_index);
         if(it != cache.end()) {
             return it->second;
@@ -100,7 +101,7 @@ public:
         }
     }
 
-    int getSymbolIndex(const wstring &name) const {
+    [[nodiscard]] int getSymbolIndex(const wstring &name) const {
         const auto &it = table.find(name);
         if(it != table.end()) {
             return it->second->index;
@@ -119,7 +120,7 @@ public:
         }
     }
 
-    const Symbol *getStartSymbol() const {
+    [[nodiscard]] const Symbol *getStartSymbol() const {
         for(const auto & symbol : getAllSymbols()) {
             if(symbol->start) {
                 return symbol;
@@ -428,15 +429,15 @@ public:
         productions.push_back(p_pdt);
     }
 
-    const vector<const Production *> &get_productions() const {
+    [[nodiscard]] const vector<const Production *> &get_productions() const {
         return productions;
     }
 
-    const Symbol *getSymbol(int symbol_index) const {
+    [[nodiscard]] const Symbol *getSymbol(int symbol_index) const {
         return symbolTable.getSymbol(symbol_index);
     }
 
-    const Symbol *getStartSymbol() const {
+    [[nodiscard]] const Symbol *getStartSymbol() const {
        return symbolTable.getStartSymbol();
     }
 
@@ -454,7 +455,7 @@ public:
         return p_pdt;
     }
 
-    const vector<const Symbol *> &getAllSymbols() const {
+    [[nodiscard]] const vector<const Symbol *> &getAllSymbols() const {
         return symbolTable.getAllSymbols();
     }
 
@@ -487,11 +488,11 @@ public:
         this->dot_index = m_dot_index;
     }
 
-    int get_dot_index() const {
+    [[nodiscard]] int get_dot_index() const {
         return dot_index;
     }
 
-    int get_dot_next_symbol() const {
+    [[nodiscard]] int get_dot_next_symbol() const {
         if(get_dot_index() == production->right.size()) {
             return 0;
         } else {
@@ -499,7 +500,7 @@ public:
         }
     }
 
-    int get_dot_next_i_symbol(int i) const {
+    [[nodiscard]] int get_dot_next_i_symbol(int i) const {
         if(get_dot_index() + i >= production->right.size()) {
             return 0;
         } else {
@@ -507,11 +508,11 @@ public:
         }
     }
 
-    int get_terminator() const {
+    [[nodiscard]] int get_terminator() const {
         return terminator;
     }
 
-    const Production *get_production() const {
+    [[nodiscard]] const Production *get_production() const {
         return production;
     }
 };
@@ -524,7 +525,7 @@ class ItemCollection{
 
     map<size_t, Item *> items;
 
-    vector<const Item *> cache;
+    vector<Item *> cache;
 
     GrammarResourcePool *pool;
 
@@ -537,17 +538,27 @@ class ItemCollection{
         seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
     }
 
+    static bool compare_item_ptr(const Item* lhs, const Item* rhs)
+    {
+        if(lhs->get_production() != rhs->get_production())
+            return lhs->get_production() < rhs->get_production();
+        else if(lhs->get_dot_index() != rhs->get_dot_index())
+            return lhs->get_dot_index() < rhs->get_dot_index();
+        else
+            return lhs->get_terminator() < rhs->get_terminator();
+    }
+
 public:
 
     explicit ItemCollection(GrammarResourcePool *pool) : pool(pool) {
 
     }
 
-    const vector<const Item *> &getItems() const {
+    [[nodiscard]] const vector<Item *> &getItems() const {
         return cache;
     }
 
-    int getIndex() const  {
+    [[nodiscard]] int getIndex() const  {
         return index;
     }
 
@@ -617,20 +628,24 @@ public:
             wcout << pool->getSymbol(p_pdt->left)->name << L" -> " ;
             int i = 0;
             for(const auto &symbol : p_pdt->right) {
-               if(i++ == dot_index) cout << "·";
+               if(i++ == dot_index) wcout << L'*';
                wcout << pool->getSymbol(symbol)->name;
             }
 
-            if(i++ == dot_index) cout << "·";
+            if(i++ == dot_index) wcout << L'*';
 
-            wcout << L"," << pool->getSymbol(item->get_terminator())->name << endl;
+            wcout << L',' << pool->getSymbol(item->get_terminator())->name << endl;
         }
         cout << endl;
     }
 
-    size_t getHash() const {
+    [[nodiscard]] size_t getHash() const {
         size_t seed = 0;
-        for(const auto item : cache) {
+
+        vector<Item *> cache_sorted(cache.begin(), cache.end());
+        sort(cache_sorted.begin(), cache_sorted.end(), compare_item_ptr);
+
+        for(const auto item : cache_sorted) {
 
             if(item->generated) {
                 continue;
@@ -656,7 +671,7 @@ class ItemCollectionManager{
 
     GrammarResourcePool *pool;
 
-    const Production *start_pdt;
+    const Production *start_pdt{};
 
     template <class T>
     inline void hash_combine(std::size_t& seed, const T& v) const
@@ -716,11 +731,11 @@ public:
 
     }
 
-    const Production *getStartProduction() const {
+    [[nodiscard]] const Production *getStartProduction() const {
         return start_pdt;
     }
 
-    const vector<const ItemCollection *> &getItemCollections() const{
+    [[nodiscard]] const vector<const ItemCollection *> &getItemCollections() const{
         return ics;
     }
 
@@ -763,7 +778,7 @@ public:
 
     }
 
-    const ItemCollection* getGOTO(int idx, int symbol) const {
+    [[nodiscard]] const ItemCollection* getGOTO(int idx, int symbol) const {
 
         auto hasher = hash<int>();
         size_t seed = hasher(idx);
@@ -809,13 +824,15 @@ class AnalyseTableGenerator {
     struct Step {
 
         const Action action;
-        const union Target{
+        union Target{
             int index;
             const Production *production;
-        } target;
+        } target{};
 
         Step(Action action, int index) : action(action), target(Target{index}){}
-        Step(Action action, const Production *p_pdt) : action(action), target(Target{.production = p_pdt}){}
+        Step(Action action, const Production *p_pdt) : action(action) {
+            target.production = p_pdt;
+        }
     };
 
     map<size_t, Step *> ACTION;
@@ -966,7 +983,7 @@ public:
                         wcout << std::left << std::setw(4) << wstring(L"s") + to_wstring(p_step->target.index);
                     else if(p_step->action == ACC)
                         wcout << std::left << std::setw(4) << L"acc";
-                    else
+                    else if(p_step->action == STATUTE)
                         wcout << std::left << std::setw(4) << L"r";
                 }
             }
@@ -1020,8 +1037,6 @@ public:
     }
 
 };
-
-
 
 
 int main() {
