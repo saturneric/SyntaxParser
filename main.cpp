@@ -990,7 +990,38 @@ public:
                 }
             }
             wcout << endl;
+
         }
+
+        wcout << endl;
+
+        wcout << "GOTO" << endl;
+        symbols.clear();
+
+        wcout << std::left << std::setw(4) << " ";
+        for(const auto *symbol : pool->getAllSymbols()) {
+            if(symbol->index == 0) continue;
+            if(!symbol->terminator && !symbol->start) {
+                wcout << std::left << std::setw(4) << symbol->name;
+                symbols.push_back(symbol->index);
+            }
+        }
+        wcout <<endl;
+
+        for(int k = 0; k < icm->getItemCollections().size(); k++) {
+            wcout << std::left << std::setw(4) << k;
+            for (int symbol : symbols) {
+                auto p_step = this->findGotoStep(k, symbol);
+                if(p_step == nullptr) {
+                    wcout << std::left << std::setw(4) << " ";
+                } else {
+                    wcout << std::left << std::setw(4) << to_wstring(p_step->target.index);
+                }
+            }
+            wcout << endl;
+        }
+
+        wcout << endl << endl;
     }
 
 };
