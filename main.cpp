@@ -628,11 +628,11 @@ public:
             wcout << pool->getSymbol(p_pdt->left)->name << L" -> " ;
             int i = 0;
             for(const auto &symbol : p_pdt->right) {
-               if(i++ == dot_index) wcout << L'*';
+               if(i++ == dot_index) wcout << "·";
                wcout << pool->getSymbol(symbol)->name;
             }
 
-            if(i++ == dot_index) wcout << L'*';
+            if(i++ == dot_index) wcout << "·";
 
             wcout << L',' << pool->getSymbol(item->get_terminator())->name << endl;
         }
@@ -924,8 +924,10 @@ public:
                         }
                     }
                 } else {
-                    if(item->get_production()->left != pool->getStartSymbol()->index) {
-                        this->add_action(ic->getIndex(), next_symbol, STATUTE, item->get_production());
+                    if(pool->getSymbol(next_symbol)->terminator) {
+                        if (item->get_production()->left != pool->getStartSymbol()->index) {
+                            this->add_action(ic->getIndex(), item->get_terminator(), STATUTE, item->get_production());
+                        }
                     }
                 }
            }
