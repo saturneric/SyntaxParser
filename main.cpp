@@ -52,8 +52,8 @@ public:
 
     SymbolTable() {
 
-        auto symbol = new Symbol(0, L"Îµ", true, false);
-        table.insert(pair<wstring, Symbol *>(L"Îµ", symbol));
+        auto symbol = new Symbol(0, L"¦Å", true, false);
+        table.insert(pair<wstring, Symbol *>(L"¦Å", symbol));
         cache.insert(pair<int, Symbol *>(0, symbol));
         line.push_back(symbol);
 
@@ -71,7 +71,7 @@ public:
 
         Symbol *symbol = nullptr;
 
-        if(name == L"Îµ") {
+        if(name == L"¦Å") {
             return 0;
         } else if (name[0] == L'@') {
             symbol = new Symbol(index, name, terminator, true);
@@ -134,31 +134,34 @@ public:
 
 };
 
-// äº§ç”Ÿå¼
+// ²úÉúÊ½
 struct Production {
+    const int index;
     const int left;
     const vector<int> right;
 
-    Production(int left, vector<int> right): left(left), right(std::move(right)) {}
+    Production(int index, int left, vector<int> right): index(index), left(left), right(std::move(right)) {}
 
 };
 
-// è¯­æ³•èµ„æºæ± 
+// Óï·¨×ÊÔ´³Ø
 class GrammarResourcePool {
 
-    // ç¬¦å·è¡¨
+    int pdt_index = 0;
+
+    // ·ûºÅ±í
     SymbolTable symbolTable;
 
-    // äº§ç”Ÿå¼
+    // ²úÉúÊ½
     vector<const Production *> productions;
 
-    // FIRSTç»“æœå­˜å‚¨è¡¨
+    // FIRST½á¹û´æ´¢±í
     map<int, const set<int> *> firsts;
 
-    // FOLLOWç»“æœå­˜å‚¨è¡¨
+    // FOLLOW½á¹û´æ´¢±í
     map<int, set<int> *> follows;
 
-    // å»æ‰é¦–å°¾ç©ºæ ¼
+    // È¥µôÊ×Î²¿Õ¸ñ
     static wstring& trim(wstring &&str) {
         if (str.empty()) {
             return str;
@@ -173,7 +176,7 @@ public:
 
     const set<int > *FIRST(const vector<int> &symbols, int start_index) {
 
-        // ç”Ÿæˆé›†åˆ
+        // Éú³É¼¯ºÏ
         auto *non_terminator_symbols = new set<int>();
 
         for(int i = start_index; i < symbols.size(); i++) {
@@ -195,23 +198,23 @@ public:
 
     const set<int>* FIRST(int symbol) {
 
-        // æŸ¥æ‰¾ç¼“å­˜
+        // ²éÕÒ»º´æ
         const auto it = firsts.find(symbol);
         if(it != firsts.end()) {
             return it->second;
         }
 
-        // ç”Ÿæˆé›†åˆ
+        // Éú³É¼¯ºÏ
         auto *non_terminator_symbols = new set<int>();
 
-        // å¦‚æœæ˜¯ç»ˆç»“ç¬¦
+        // Èç¹ûÊÇÖÕ½á·û
         if(symbolTable.getSymbol(symbol)->terminator) {
             non_terminator_symbols->insert(symbol);
         } else {
 
             bool production_found = false;
 
-            // éå†æ¯ä¸€äº§ç”Ÿå¼
+            // ±éÀúÃ¿Ò»²úÉúÊ½
             for (const auto &production : productions) {
                 const Production *p_pdt = production;
 
@@ -268,7 +271,7 @@ public:
             }
         }
 
-        // æŒ‡å¯¼æ²¡æœ‰æ–°çš„ç¬¦å·è¢«æ·»åŠ åˆ°ä»»æ„FOLLOWé›†åˆ
+        // Ö¸µ¼Ã»ÓĞĞÂµÄ·ûºÅ±»Ìí¼Óµ½ÈÎÒâFOLLOW¼¯ºÏ
         bool ifAdded = true;
 
         while(ifAdded) {
@@ -287,25 +290,25 @@ public:
 
                 for (int i = 0; i < right_symbols.size() - 1; i++) {
 
-                    // éç»ˆç»“ç¬¦
+                    // ·ÇÖÕ½á·û
                     if (!symbolTable.getSymbol(right_symbols[i])->terminator) {
 
                         const auto p_non_term_set = FIRST(right_symbols, i + 1);
 
-                        // è·å¾—FOLLOWé›†
+                        // »ñµÃFOLLOW¼¯
                         non_terminator_symbols = get_follow_set(right_symbols[i]);
 
                         const size_t set_size = non_terminator_symbols->size();
 
                         non_terminator_symbols->insert(p_non_term_set->begin(), p_non_term_set->end());
 
-                        // åœ¨é›†åˆä¸­å‘ç°ç©ºå­—ç¬¦
+                        // ÔÚ¼¯ºÏÖĞ·¢ÏÖ¿Õ×Ö·û
                         if(non_terminator_symbols->find(0) != non_terminator_symbols->end()) {
                             non_terminator_symbols->erase(0);
                             equal_left_non_terminators.insert(right_symbols[i]);
                         }
 
-                        // æ£€æŸ¥æ˜¯å¦æœ‰æ–°çš„ç»ˆç»“ç¬¦å·è¢«æ·»åŠ 
+                        // ¼ì²éÊÇ·ñÓĞĞÂµÄÖÕ½á·ûºÅ±»Ìí¼Ó
                         if(set_size < non_terminator_symbols->size()) {
                             ifAdded = true;
                         }
@@ -319,9 +322,9 @@ public:
                 }
 
                 for(const auto symbol : equal_left_non_terminators) {
-                    // è·å¾—å·¦è¾¹éç»ˆç»“ç¬¦çš„FOLLOWé›†
+                    // »ñµÃ×ó±ß·ÇÖÕ½á·ûµÄFOLLOW¼¯
                     const auto left_non_terminator_symbols = get_follow_set(production->left);
-                    // è·å¾—FOLLOWé›†
+                    // »ñµÃFOLLOW¼¯
                     non_terminator_symbols = get_follow_set(symbol);
 
                     const size_t set_size = non_terminator_symbols->size();
@@ -334,7 +337,7 @@ public:
                         non_terminator_symbols->erase(0);
                     }
 
-                    // æ£€æŸ¥æ˜¯å¦æœ‰æ–°çš„ç»ˆç»“ç¬¦å·è¢«æ·»åŠ 
+                    // ¼ì²éÊÇ·ñÓĞĞÂµÄÖÕ½á·ûºÅ±»Ìí¼Ó
                     if(set_size < non_terminator_symbols->size()) {
                         ifAdded = true;
                     }
@@ -350,7 +353,7 @@ public:
 
         set<int> *non_terminator_symbols = nullptr;
 
-        // æŸ¥æ‰¾ç¼“å­˜
+        // ²éÕÒ»º´æ
         auto it = follows.find(symbol);
         if(it != follows.end()) {
             non_terminator_symbols = it->second;
@@ -370,7 +373,7 @@ public:
             auto *p_sym = symbolTable.getSymbol(symbol_index);
 
             if(p_sym->terminator) {
-                if (p_sym->name == L"Îµ") {
+                if (p_sym->name == L"¦Å") {
                     wcout << L" [Epsilon] ";
                 }
                 else wcout << L" \"" << p_sym->name << L"\" ";
@@ -423,8 +426,12 @@ public:
                 non_terminator << c;
             }
         }
+        wstring temp_symbol = trim(non_terminator.str());
+        if(!temp_symbol.empty()) {
+            symbols.push_back(symbolTable.addSymbol(trim(non_terminator.str()), false));
+        }
 
-        auto p_pdt = new Production(left, symbols);
+        auto p_pdt = new Production(pdt_index++, left, symbols);
 
         productions.push_back(p_pdt);
     }
@@ -450,7 +457,7 @@ public:
         for(int symbol : right) {
             right_vector.push_back(symbol);
         }
-        auto p_pdt = new Production(left, right_vector);
+        auto p_pdt = new Production(pdt_index++, left, right_vector);
         productions.push_back(p_pdt);
         return p_pdt;
     }
@@ -464,12 +471,12 @@ public:
     }
 };
 
-// é¡¹
+// Ïî
 class Item{
-    // å¯¹åº”çš„äº§ç”Ÿå¼
+    // ¶ÔÓ¦µÄ²úÉúÊ½
     const Production* const production;
 
-    // ç‚¹çš„ä½ç½®
+    // µãµÄÎ»ÖÃ
     int dot_index = 0;
 
     const int terminator = 0;
@@ -627,14 +634,27 @@ public:
             int dot_index = item->get_dot_index();
             wcout << pool->getSymbol(p_pdt->left)->name << L" -> " ;
             int i = 0;
-            for(const auto &symbol : p_pdt->right) {
-               if(i++ == dot_index) wcout << "Â·";
-               wcout << pool->getSymbol(symbol)->name;
+            for(const auto &symbol_index : p_pdt->right) {
+
+                if(i > 0)  wcout << " ";
+                if(i++ == dot_index) wcout << "¡¤";
+
+                auto *symbol = pool->getSymbol(symbol_index);
+
+                if(!symbol->index) {
+                    wcout << L"[Epsilon]";
+                    continue;
+                }
+
+                if(!symbol->terminator)
+                    wcout << pool->getSymbol(symbol_index)->name;
+                else
+                    wcout << L'"' << pool->getSymbol(symbol_index)->name << L'"';
             }
 
-            if(i++ == dot_index) wcout << "Â·";
+            if(i++ == dot_index) wcout << "¡¤";
 
-            wcout << L',' << pool->getSymbol(item->get_terminator())->name << endl;
+            wcout << L", \"" << pool->getSymbol(item->get_terminator())->name << "\"" << endl;
         }
         cout << endl;
     }
@@ -702,7 +722,7 @@ public:
 
         auto *pi_ic = new ItemCollection(pool);
 
-        // -1 ä»£è¡¨ $
+        // -1 ´ú±í $
         pi_ic->addItem(p_pdt, 0, -1);
 
         pi_ic->CLOSURE();
@@ -769,8 +789,15 @@ public:
             return false;
         }
 
-        if(symbol != 0)
-            wcout << L"GOTO(" << idx << L", " << pool->getSymbol(symbol)->name << L")" << endl;
+        if(symbol != 0) {
+            auto p_symbol = pool->getSymbol(symbol);
+            if(p_symbol->terminator)
+                wcout << L"GOTO(" << idx << L", \"" << p_symbol->name << L"\")" << endl;
+            else
+                wcout << L"GOTO(" << idx << L", " << p_symbol->name << L")" << endl;
+        } else {
+            wcout << L"GOTO(" << idx << L", [Epsilon])" << endl;
+        }
 
         ic_map.insert(pair<size_t, ItemCollection *>(seed, p_ic));
         p_ic->print();
@@ -961,79 +988,96 @@ public:
     }
 
     void print() {
-        wcout << L"ACTION" << endl;
+
+        std::wofstream output("tables.txt");
+
+        size_t space = 4;
+
+        output << L"ACTION" << endl;
         vector<int> symbols;
 
-        wcout << std::left << std::setw(4) << " ";
+        output << std::left << std::setw(space) << " ";
         for(const auto *symbol : pool->getAllSymbols()) {
             if(symbol->index == 0) continue;
             if(symbol->terminator) {
-                wcout << std::left << std::setw(4) << symbol->name;
+                space = std::max(space, symbol->name.size() + 2);
                 symbols.push_back(symbol->index);
             }
         }
-        wcout << endl;
+
+        for(const auto symbol_index : symbols) {
+            output << std::left << std::setw(space) << pool->getSymbol(symbol_index)->name;
+        }
+
+        output << endl;
 
         for(int i = 0; i < icm->getItemCollections().size(); i++){
-            wcout << std::left << std::setw(4) << i;
+            output << std::left << std::setw(space) << i;
             for(int symbol : symbols) {
                 auto p_step = this->findActionStep(i, symbol);
                 if(p_step == nullptr) {
-                    wcout << std::left << std::setw(4) << " ";
+                    output << std::left << std::setw(space) << " ";
                 } else {
                     if(p_step->action == MOVE)
-                        wcout << std::left << std::setw(4) << wstring(L"s") + to_wstring(p_step->target.index);
+                        output << std::left << std::setw(space) << wstring(L"s") + to_wstring(p_step->target.index);
                     else if(p_step->action == ACC)
-                        wcout << std::left << std::setw(4) << L"acc";
+                        output << std::left << std::setw(space) << L"acc";
                     else if(p_step->action == STATUTE)
-                        wcout << std::left << std::setw(4) << L"r";
+                        output << std::left << std::setw(space) << L"r" + to_wstring(p_step->target.production->index);
                 }
             }
-            wcout << endl;
+            output << endl;
 
         }
 
-        wcout << endl;
+        output << endl;
 
-        wcout << "GOTO" << endl;
+        space = 4;
+
+        output << "GOTO" << endl;
         symbols.clear();
 
-        wcout << std::left << std::setw(4) << " ";
+        output << std::left << std::setw(space) << " ";
         for(const auto *symbol : pool->getAllSymbols()) {
             if(symbol->index == 0) continue;
             if(!symbol->terminator && !symbol->start) {
-                wcout << std::left << std::setw(4) << symbol->name;
+                space = std::max(space, symbol->name.size() + 2);
                 symbols.push_back(symbol->index);
             }
         }
-        wcout <<endl;
+
+        for(const auto symbol_index : symbols) {
+            output << std::left << std::setw(space) << pool->getSymbol(symbol_index)->name;
+        }
+
+        output <<endl;
 
         for(int k = 0; k < icm->getItemCollections().size(); k++) {
-            wcout << std::left << std::setw(4) << k;
+            output << std::left << std::setw(space) << k;
             for (int symbol : symbols) {
                 auto p_step = this->findGotoStep(k, symbol);
                 if(p_step == nullptr) {
-                    wcout << std::left << std::setw(4) << " ";
+                    output << std::left << std::setw(space) << " ";
                 } else {
-                    wcout << std::left << std::setw(4) << to_wstring(p_step->target.index);
+                    output << std::left << std::setw(space) << to_wstring(p_step->target.index);
                 }
             }
-            wcout << endl;
+            output << endl;
         }
 
-        wcout << endl << endl;
+        output << endl << endl;
+
+        output.close();
     }
 
 };
 
 class Generator{
 
-    // æ–‡ä»¶è¾“å…¥
+    // ÎÄ¼şÊäÈë
     wifstream input;
 
     GrammarResourcePool *pool;
-
-    map<string, ItemCollection *> C;
 
     ItemCollectionManager *icm;
 
@@ -1051,6 +1095,10 @@ public:
         input.imbue(std::locale(input.getloc(), codeCvtToUTF8));
     }
 
+    ~Generator() {
+        input.close();
+    }
+
     void run() {
         pool->FOLLOW();
         icm->buildItems();
@@ -1058,23 +1106,70 @@ public:
         atg->print();
     }
 
-    // å¾—åˆ°æ‰€æœ‰çš„äº§ç”Ÿå¼
+    // µÃµ½ËùÓĞµÄ²úÉúÊ½
     void getProductions() {
 
-        // è¯»å…¥æ–‡æ³•æ–‡ä»¶
+        // ¶ÁÈëÎÄ·¨ÎÄ¼ş
         wstring temp_line;
 
         while (getline(input, temp_line)) {
-            pool->parse_production_string_line(temp_line);
+            if(temp_line.size() > 2 && temp_line[0] != '#') {
+                pool->parse_production_string_line(temp_line);
+            }
         }
     }
+
+    void output(const GrammarResourcePool *&pool, const AnalyseTableGenerator *&atg) {
+        pool = this->pool;
+        atg = this->atg;
+    }
+
+};
+
+class SyntaxParser {
+
+    // ÎÄ¼şÊäÈë
+    wifstream input;
+
+    const GrammarResourcePool *pool;
+
+    const AnalyseTableGenerator *atg;
+
+    SyntaxParser(const GrammarResourcePool *pool, const AnalyseTableGenerator *atg):
+        input("outputToken.txt", std::ios::binary),
+        pool(pool),
+        atg(atg){
+
+        auto* codeCvtToUTF8= new std::codecvt_utf8<wchar_t>;
+
+        input.imbue(std::locale(input.getloc(), codeCvtToUTF8));
+    }
+
+    ~SyntaxParser() {
+        input.close();
+    }
+
+    // µÃµ½ËùÓĞµÄ²úÉúÊ½
+    void getToken() {
+
+        // ¶ÁÈëÎÄ·¨ÎÄ¼ş
+        wstring temp_line;
+
+        int line_index = 0;
+        while (getline(input, temp_line)) {
+            if(temp_line.size() > 2 && temp_line[0] != '#') {
+                input >> line_index;
+            }
+        }
+    }
+
 
 };
 
 
 int main() {
-    clock_t start,end;//å®šä¹‰clock_tå˜é‡
-    start = clock(); //å¼€å§‹æ—¶é—´
+    clock_t start,end;//¶¨Òåclock_t±äÁ¿
+    start = clock(); //¿ªÊ¼Ê±¼ä
 
 
     Generator generator;
@@ -1082,8 +1177,8 @@ int main() {
     generator.getProductions();
 
     generator.run();
-    //è¾“å‡ºæ—¶é—´
-    end = clock();   //ç»“æŸæ—¶é—´
+    //Êä³öÊ±¼ä
+    end = clock();   //½áÊøÊ±¼ä
     double times = double(end-start)/CLOCKS_PER_SEC;
     cout<<"The Run time = "<<times<<"s" << " = " <<times * 1000 <<"ms" << endl;
     return 0;

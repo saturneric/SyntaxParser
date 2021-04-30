@@ -1,3 +1,68 @@
-@S -> C C
-C -> "c" C
-C -> "d"
+@struct_type -> "struct" "ID" "{"  member_list "}" "EOF"
+member_list-> type_spec declarators ";"
+type_spec -> base_type_spec
+type_spec -> struct_type
+base_type_spec -> floating_pt_type
+base_type_spec -> integer_type
+base_type_spec -> "char"
+base_type_spec ->  "boolean"
+floating_pt_type -> "float"
+floating_pt_type -> "double"
+floating_pt_type -> "long" "double"
+integer_type -> signed_int
+integer_type -> unsigned_int
+
+signed_int -> "short"
+signed_int -> "int16"
+signed_int -> "long"
+signed_int -> "int32"
+signed_int -> "long" "long"
+signed_int -> "int64"
+signed_int -> "int8"
+
+unsigned_int -> "unsigned" "short"
+unsigned_int -> "unsigned" "long"
+unsigned_int -> "unsigned" "long" "long"
+unsigned_int -> "unit16"
+unsigned_int -> "unit32"
+unsigned_int -> "unit64"
+unsigned_int -> "unit8"
+
+declarators -> declarator more_declarators
+more_declarators -> "," declarator
+more_declarators -> ε
+
+declarator -> "ID" more_declarator
+more_declarator -> exp_list
+more_declarator -> ε
+
+exp_list -> "[" or_expr more_or_expr "]"
+more_or_expr -> "," or_expr
+more_or_expr -> ε
+xor_expr -> and_expr more_and_expr
+more_and_expr -> "^" and_expr
+more_and_expr -> ε
+and_expr -> shift_expr more_shift_expr
+more_shift_expr -> "&" shift_expr
+more_shift_expr -> ε
+shift_expr -> add_expr more_add_expr
+more_add_expr -> shift_sign add_expr
+shift_sign -> ">>"
+shift_sign -> "<<"
+add_expr -> multi_expr more_multi_expr
+more_multi_expr -> multi_sign multi_expr
+multi_sign -> "+"
+multi_sign -> "-"
+multi_expr -> unary_expr more_unary_expr
+more_unary_expr -> unary_sign unary_expr
+more_unary_expr -> ε
+unary_sign -> "*"
+unary_sign -> "/"
+unary_sign -> "%"
+unary_expr -> unary_sign_2 unary_declare
+unary_sign_2 -> "-"
+unary_sign_2 -> "+"
+unary_sign_2 -> "~"
+unary_declare -> "INTEGER"
+unary_declare -> "STRING"
+unary_declare -> "BOOLEAN"
