@@ -1,7 +1,12 @@
-@struct_type -> "struct" "ID" "{"  member_list "}" "EOF"
-member_list-> type_spec declarators ";"
+@struct_type -> "struct" "ID" "{" member_list "}" more_struct_type
+more_struct_type -> "EOF"
+more_struct_type -> ε
+
+member_list -> type_spec declarators ";"  member_list
+member_list -> ε
+
 type_spec -> base_type_spec
-type_spec -> struct_type
+type_spec -> @struct_type
 base_type_spec -> floating_pt_type
 base_type_spec -> integer_type
 base_type_spec -> "char"
@@ -23,13 +28,13 @@ signed_int -> "int8"
 unsigned_int -> "unsigned" "short"
 unsigned_int -> "unsigned" "long"
 unsigned_int -> "unsigned" "long" "long"
-unsigned_int -> "unit16"
-unsigned_int -> "unit32"
-unsigned_int -> "unit64"
-unsigned_int -> "unit8"
+unsigned_int -> "uint16"
+unsigned_int -> "uint32"
+unsigned_int -> "uint64"
+unsigned_int -> "uint8"
 
 declarators -> declarator more_declarators
-more_declarators -> "," declarator
+more_declarators -> "," declarator more_declarators
 more_declarators -> ε
 
 declarator -> "ID" more_declarator
@@ -37,32 +42,48 @@ more_declarator -> exp_list
 more_declarator -> ε
 
 exp_list -> "[" or_expr more_or_expr "]"
-more_or_expr -> "," or_expr
+more_or_expr -> "," or_expr more_or_expr
 more_or_expr -> ε
+
+or_expr -> xor_expr more_xor_expr
+more_xor_expr -> "|" xor_expr more_xor_expr
+more_xor_expr -> ε
+
 xor_expr -> and_expr more_and_expr
-more_and_expr -> "^" and_expr
+more_and_expr -> "^" and_expr more_and_expr
 more_and_expr -> ε
+
 and_expr -> shift_expr more_shift_expr
-more_shift_expr -> "&" shift_expr
+more_shift_expr -> "&" shift_expr more_shift_expr
 more_shift_expr -> ε
+
 shift_expr -> add_expr more_add_expr
-more_add_expr -> shift_sign add_expr
+more_add_expr -> shift_sign add_expr more_add_expr
 shift_sign -> ">>"
 shift_sign -> "<<"
+more_add_expr -> ε
+
 add_expr -> multi_expr more_multi_expr
-more_multi_expr -> multi_sign multi_expr
+more_multi_expr -> multi_sign multi_expr more_multi_expr
 multi_sign -> "+"
 multi_sign -> "-"
+more_multi_expr -> ε
+
 multi_expr -> unary_expr more_unary_expr
-more_unary_expr -> unary_sign unary_expr
-more_unary_expr -> ε
+more_unary_expr -> unary_sign unary_expr more_unary_expr
 unary_sign -> "*"
 unary_sign -> "/"
 unary_sign -> "%"
+more_unary_expr -> ε
+
 unary_expr -> unary_sign_2 unary_declare
 unary_sign_2 -> "-"
 unary_sign_2 -> "+"
 unary_sign_2 -> "~"
+unary_sign_2 -> ε
 unary_declare -> "INTEGER"
 unary_declare -> "STRING"
-unary_declare -> "BOOLEAN"
+unary_declare -> BOOLEAN
+
+BOOLEAN -> "TRUE"
+BOOLEAN -> "FALSE"
