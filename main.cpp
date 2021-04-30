@@ -10,6 +10,9 @@
 #include <functional>
 #include <iomanip>
 #include <algorithm>
+#include <regex>
+#include <stack>
+#include <queue>
 
 using namespace std;
 
@@ -22,6 +25,8 @@ using std::endl;
 using std::to_string;
 using std::hash;
 using std::setw;
+using std::stack;
+using std::queue;
 
 struct Symbol {
 
@@ -1072,7 +1077,7 @@ public:
 
 };
 
-class Generator{
+class LR0Generator{
 
     // 文件输入
     wifstream input;
@@ -1085,17 +1090,17 @@ class Generator{
 
 public:
 
-    Generator(): input("syntaxInput.txt", std::ios::binary),
-        pool(new GrammarResourcePool()),
-        icm(new ItemCollectionManager(pool)),
-        atg(new AnalyseTableGenerator(pool, icm)){
+    LR0Generator(): input("syntaxInput.txt", std::ios::binary),
+                    pool(new GrammarResourcePool()),
+                    icm(new ItemCollectionManager(pool)),
+                    atg(new AnalyseTableGenerator(pool, icm)){
 
         auto* codeCvtToUTF8= new std::codecvt_utf8<wchar_t>;
 
         input.imbue(std::locale(input.getloc(), codeCvtToUTF8));
     }
 
-    ~Generator() {
+    ~LR0Generator() {
         input.close();
     }
 
@@ -1135,6 +1140,31 @@ class SyntaxParser {
 
     const AnalyseTableGenerator *atg;
 
+    queue<int> token_queue;
+
+    vector<std::wstring> ws_split(const std::wstring& in, const std::wstring& delim) {
+        std::wregex re{ delim };
+        return std::vector<std::wstring> {
+                std::wsregex_token_iterator(in.begin(), in.end(), re, -1),
+                std::wsregex_token_iterator()
+        };
+    }
+
+    pair<wstring, wstring> get_token_info(const wstring &token) {
+
+        auto pre_index = token.find(L'(');
+
+        auto back_index = token.find(L')');
+
+        wstring name = token.substr(pre_index);
+        wstring value = token.substr(pre_index + 1, back_index - 1);
+
+        return pair<wstring, wstring>(name, value);
+
+    }
+
+public:
+
     SyntaxParser(const GrammarResourcePool *pool, const AnalyseTableGenerator *atg):
         input("outputToken.txt", std::ios::binary),
         pool(pool),
@@ -1155,10 +1185,17 @@ class SyntaxParser {
         // 读入文法文件
         wstring temp_line;
 
-        int line_index = 0;
+        wstring line_index;
         while (getline(input, temp_line)) {
             if(temp_line.size() > 2 && temp_line[0] != '#') {
-                input >> line_index;
+                vector<wstring> tokens = ws_split(temp_line, L" ");
+
+                line_index = tokens[0];
+
+                for(int i = 1; i < tokens.size(); i++) {
+                    auto token_info = get_token_info(tokens[i]);
+                }
+
             }
         }
     }
@@ -1171,16 +1208,28 @@ int main() {
     clock_t start,end;//定义clock_t变量
     start = clock(); //开始时间
 
+    const GrammarResourcePool *pool;
 
-    Generator generator;
+    const AnalyseTableGenerator *atg;
+
+
+    LR0Generator generator;
 
     generator.getProductions();
 
     generator.run();
+
+    generator.output(pool, atg);
+
     //输出时间
     end = clock();   //结束时间
     double times = double(end-start)/CLOCKS_PER_SEC;
     cout<<"The Run time = "<<times<<"s" << " = " <<times * 1000 <<"ms" << endl;
+
+    SyntaxParser syntaxParser(pool, atg);
+
+    syntaxParser.getToken();
+
     return 0;
 }
 
