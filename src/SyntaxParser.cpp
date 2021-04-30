@@ -112,13 +112,7 @@ void SyntaxParser::getToken() {
                 auto token_info = get_token_info(tokens[i]);
                 int symbol_index;
 
-                if(token_info.first == L"ID"
-                    || token_info.first == L"EOF"
-                    || token_info.first == L"INTEGER"
-                    || token_info.first == L"STRING")
-                    symbol_index = pool->getSymbolIndex(token_info.first);
-                else
-                    symbol_index = pool->getSymbolIndex(token_info.second);
+                symbol_index = pool->getSymbolIndex(token_info.first);
 
                 tokens_queue.push(symbol_index);
                 _line_index++;

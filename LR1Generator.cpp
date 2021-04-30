@@ -18,39 +18,43 @@ using std::endl;
 
 
 int main() {
-    clock_t start,end;//定义clock_t变量
-    start = clock(); //开始时间
+    try {
+        clock_t start, end;//定义clock_t变量
+        start = clock(); //开始时间
 
-    const GrammarResourcePool *pool;
+        const GrammarResourcePool *pool;
 
-    const AnalyseTableGenerator *atg;
+        const AnalyseTableGenerator *atg;
 
 
-    LR1Generator generator;
+        LR1Generator generator;
 
-    generator.getProductions();
+        generator.getProductions();
 
-    generator.run();
+        generator.run();
 
-    generator.output(pool, atg);
+        generator.output(pool, atg);
 
-    //输出时间
-    end = clock();   //结束时间
-    double times = double(end-start)/CLOCKS_PER_SEC;
-    wcout<<"LR1Generator Run time = "<< times <<"s MicroSeconds" << " = " << times * 1000 <<"ms" << endl;
+        //输出时间
+        end = clock();   //结束时间
+        double times = double(end - start) / CLOCKS_PER_SEC;
+        wcout << "LR1Generator Run time = " << times << "s MicroSeconds" << " = " << times * 1000 << "ms" << endl;
 
-    start = clock(); //开始时间
+        start = clock(); //开始时间
 
-    SyntaxParser syntaxParser(pool, atg);
+        SyntaxParser syntaxParser(pool, atg);
 
-    syntaxParser.getToken();
+        syntaxParser.getToken();
 
-    syntaxParser.parse();
+        syntaxParser.parse();
 
-    //输出时间
-    end = clock();   //结束时间
-    times = double(end-start)/CLOCKS_PER_SEC;
-    wcout<<"SyntaxParser Run time = "<<times<<"s MicroSeconds " << " = " << times * 1000 <<"ms" << endl;
+        //输出时间
+        end = clock();   //结束时间
+        times = double(end - start) / CLOCKS_PER_SEC;
+        wcout << "SyntaxParser Run time = " << times << "s MicroSeconds " << " = " << times * 1000 << "ms" << endl;
+    } catch(std::runtime_error &e) {
+        std::wcout << "Runtime Error: " << e.what() << endl;
+    }
 
     return 0;
 }

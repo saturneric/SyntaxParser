@@ -86,7 +86,7 @@ const std::set<int> *GrammarResourcePool::FOLLOW(int symbol) {
     if(it != follows.end()) {
         return it->second;
     } else {
-        throw std::runtime_error("symbol NOT Found");
+        throw std::runtime_error("Symbol_Index" + std::to_string(symbol) + "NOT Found");
     }
 }
 
