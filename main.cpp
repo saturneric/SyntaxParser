@@ -1084,7 +1084,6 @@ int main() {
     generator.run();
     //输出时间
     end = clock();   //结束时间
-    cout << endl;
     double times = double(end-start)/CLOCKS_PER_SEC;
     cout<<"The Run time = "<<times<<"s" << " = " <<times * 1000 <<"ms" << endl;
     return 0;
