@@ -9,6 +9,4 @@ include_directories(./include)
 
 aux_source_directory(src SRC_FILES)
 
-add_executable(LR1Generator LR1Generator.cpp ${SRC_FILES})
-
-add_executable(syntaxParser LR1Generator.cpp ${SRC_FILES})
+add_executable(LR1Compiler Compiler.cpp ${SRC_FILES})

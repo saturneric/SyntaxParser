@@ -110,11 +110,7 @@ void SyntaxParser::getToken() {
             for(int i = 1; i < tokens.size(); i++) {
                 if(tokens[i] == L"\r") continue;;
                 auto token_info = get_token_info(tokens[i]);
-                int symbol_index;
-
-                symbol_index = pool->getSymbolIndex(token_info.first);
-
-                tokens_queue.push(symbol_index);
+                tokens_queue.push(pool->getSymbolIndex(token_info.first));
                 _line_index++;
 
             }
