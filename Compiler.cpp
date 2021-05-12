@@ -21,7 +21,10 @@ int main(int argc, const char* argv[]) {
 
     try {
 
-        printf("Compile Program Based on LR(1) Written By Saturneric\n");
+        wcout << "Compile Program Based on LR(1) Written By Saturneric(胡宇 2018303206)" << endl;
+
+        wcout << "老师注意：本程序区分关键字的大小写！！！" << endl
+        << "这样做的原因是本人在实践上还没有见过有哪门语言不区分关键字大小写的" << endl;
 
         if (argc < 2) {
             printf("Usage: <Input Path>\n");
