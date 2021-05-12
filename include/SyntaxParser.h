@@ -12,6 +12,7 @@
 
 #include <GrammarResourcePool.h>
 #include <AnalyseTableGenerator.h>
+#include <SyntaxTree.h>
 
 
 
@@ -21,6 +22,8 @@ class SyntaxParser {
     std::wifstream input;
 
     std::wofstream output;
+
+    std::wofstream treeOutput;
 
     const GrammarResourcePool *pool;
 
@@ -32,6 +35,8 @@ class SyntaxParser {
 
     std::stack<int> status_stack;
 
+    std::stack<TreeNode *> tree_stack;
+
     std::vector<size_t> lines_index;
 
     std::wstringstream string_buffer;
@@ -42,21 +47,27 @@ class SyntaxParser {
 
     static std::pair<std::wstring, std::wstring> get_token_info(const std::wstring &token);
 
+    SyntaxTree syntaxTree;
+
 public:
 
     SyntaxParser(const GrammarResourcePool *pool, const AnalyseTableGenerator *atg):
             input("tokenOut.txt", std::ios::binary),
             pool(pool),
             atg(atg),
-            output("SyntaxOut.txt", std::ios::binary){
+            output("AnalyseOut.txt", std::ios::binary),
+            treeOutput("SyntaxOut.txt", std::ios::binary){
 
         auto* codeCvtToUTF8= new std::codecvt_utf8<wchar_t>;
         input.imbue(std::locale(input.getloc(), codeCvtToUTF8));
         output.imbue(std::locale(output.getloc(), codeCvtToUTF8));
+        treeOutput.imbue(std::locale(output.getloc(), codeCvtToUTF8));
     }
 
     ~SyntaxParser() {
+        input.close();
         output.close();
+        treeOutput.close();
     }
 
     // 得到所有的产生式
@@ -69,9 +80,12 @@ public:
     // 自底向上语法分析
     void parse();
 
+    void printError(std::wofstream &errOutput);
+
     void printError();
 
     void printDone();
+
 };
 
 
